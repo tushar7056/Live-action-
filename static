@@ -1,0 +1,78 @@
+<!-- static/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>WinGo Predictor - Live</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, Arial; margin: 20px; background:#0b1220;color:#e6eef8; }
+    .card { background:#0f1724;padding:16px;border-radius:8px; margin-bottom:12px; box-shadow:0 6px 18px rgba(0,0,0,0.4) }
+    h1 { margin:0 0 8px 0; font-size:20px }
+    .big { font-size:56px; font-weight:700; }
+    .small { font-size:20px; opacity:0.9 }
+    .stat { display:inline-block; margin-right:12px }
+    .mono { font-family: monospace; }
+    .good { color: #7ee787 }
+    .bad { color: #ff7b7b }
+  </style>
+</head>
+<body>
+  <h1>🎰 WinGo Predictor (Live)</h1>
+
+  <div class="card">
+    <div id="pendingArea"><em>Waiting for first prediction...</em></div>
+  </div>
+
+  <div class="card">
+    <div>
+      <span class="stat">Total: <span id="total">0</span></span>
+      <span class="stat">Correct Num: <span id="correct_number">0</span></span>
+      <span class="stat">Correct Size: <span id="correct_size">0</span></span>
+    </div>
+    <div style="margin-top:12px;">
+      <small>Last history (recent actuals):</small>
+      <div id="history" class="mono"></div>
+    </div>
+  </div>
+
+  <script>
+    const wsUrl = `${location.origin.replace(/^http/, 'ws')}/ws`;
+    let ws;
+    function connect() {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => console.log("ws open");
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          render(data);
+        } catch(e) { console.log(e) }
+      };
+      ws.onclose = () => { console.log("ws closed, reconnecting in 2s"); setTimeout(connect,2000); };
+      ws.onerror = (e) => console.log("ws err", e);
+    }
+    function render(payload) {
+      const pending = payload.pending;
+      if (pending) {
+        document.getElementById("pendingArea").innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div class="big">${pending.number}</div>
+              <div class="small">Size: <strong>${pending.size}</strong> — NumConf: ${pending.number_conf.toFixed(3)} • SizeConf: ${pending.size_conf.toFixed(3)}</div>
+              <div class="small mono">Serial: ${pending.serial} • PredTime: ${pending.time}</div>
+            </div>
+          </div>
+        `;
+      } else {
+        document.getElementById("pendingArea").innerHTML = `<em>No valid prediction right now (low confidence).</em>`;
+      }
+      document.getElementById("total").innerText = payload.stats.total || 0;
+      document.getElementById("correct_number").innerText = payload.stats.correct_number || 0;
+      document.getElementById("correct_size").innerText = payload.stats.correct_size || 0;
+      const last = payload.last_history || [];
+      document.getElementById("history").innerText = last.map(x => x[1]).slice(-40).join(" ");
+    }
+    connect();
+  </script>
+</body>
+</html>
